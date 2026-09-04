@@ -1,3 +1,4 @@
+import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
 import { exec } from 'child_process';
@@ -255,8 +256,16 @@ function runLocally(rawLang, code, stdin = "") {
   });
 }
 
-const wss = new WebSocketServer({ port: PORT });
-console.log(`[Proxy] WebSocket server running on ws://localhost:${PORT}`);
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Realtime Voice Assistant Server Running\n');
+});
+
+const wss = new WebSocketServer({ server });
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
+});
 
 wss.on('connection', (clientWs, req) => {
   const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
