@@ -29,21 +29,21 @@ The **Real-Time Voice-First AI Coding Assistant** bridges natural spoken convers
 ```mermaid
 flowchart TD
     subgraph Client ["Next.js Frontend (Port 3000)"]
-        Mic[Microphone 16kHz PCM]
-        Webcam[Webcam / Screen 1 FPS]
-        UI[Voice Orb & Cyberpunk Sandbox]
-        STDN[Custom STDIN Input]
+        Mic["Microphone 16kHz PCM"]
+        Webcam["Webcam / Screen 1 FPS"]
+        UI["Voice Orb & Cyberpunk Sandbox"]
+        STDN["Custom STDIN Input"]
     end
 
     subgraph Server ["Node.js Proxy Server (Port 8080)"]
-        WSProxy[WebSocket Server]
-        LangDetector[Language Safety Guard & Parser]
-        LocalExec[Local Runner (GCC / G++ / Python / Java)]
-        PistonAPI[Piston Cloud API Fallback]
+        WSProxy["WebSocket Server"]
+        LangDetector["Language Safety Guard & Parser"]
+        LocalExec["Local Runner (GCC / G++ / Python / Java)"]
+        PistonAPI["Piston Cloud API Fallback"]
     end
 
     subgraph Gemini ["Google AI Cloud"]
-        LiveAPI[Gemini 2.5 Flash Native Audio API]
+        LiveAPI["Gemini 2.5 Flash Native Audio API"]
     end
 
     Mic -->|Binary PCM Chunks| WSProxy
