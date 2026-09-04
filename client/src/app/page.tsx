@@ -137,7 +137,7 @@ export default function VoiceAssistant() {
   }, [activeCode, isEditingCode]);
 
   const handleRerunCode = () => {
-    if (!activeCode) return;
+    if (!activeCode || isRunningCode) return;
     setIsRunningCode(true);
 
     // Safety timeout fallback so button never stays stuck even if server disconnects
@@ -149,7 +149,7 @@ export default function VoiceAssistant() {
       wsRef.current.send(
         JSON.stringify({
           type: 'RE_RUN_CODE',
-          language: selectedLang.toLowerCase(),
+          language: (selectedLang || 'c').toLowerCase(),
           code: activeCode.code,
           stdin: stdinInput,
         })
@@ -419,12 +419,12 @@ export default function VoiceAssistant() {
           const cleanOutput = (msg.output || '').replace(/\\n/g, '\n');
 
           if (msg.output !== undefined || msg.code !== undefined) {
-            setActiveCode({
+            setActiveCode((prev) => ({
               language: detectedLang,
-              code: msg.code || '',
+              code: msg.code !== undefined && msg.code !== '' ? msg.code : (prev?.code || ''),
               output: cleanOutput,
               badge: msg.badge || '● Exit 0 | Compiled locally',
-            });
+            }));
           }
 
           const formattedCodeText = `Executed ${msg.language || 'Code'}:\n\`\`\`${(msg.language || 'text').toLowerCase()}\n${msg.code || ''}\n\`\`\`\nOutput:\n\`\`\`\n${msg.output || 'Program executed successfully.'}\n\`\`\``;

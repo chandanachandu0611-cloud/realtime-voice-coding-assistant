@@ -1,7 +1,7 @@
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -149,110 +149,173 @@ function parseLang(rawLang, code = "") {
 }
 
 // Helper for sub-second local code execution across 8 programming languages
-function runLocally(rawLang, rawCode, stdin = "") {
+function runLocally(rawLang, code, stdin = "") {
   return new Promise(async (resolve) => {
-    const cleanCode = (rawCode || "").replace(/\\\\n/g, '\\n').replace(/\\n/g, '\n');
+    const cleanCode = (code || "").replaceAll('\\\\n', '\\n');
     const { key, name, piston } = parseLang(rawLang, cleanCode);
+    const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const tempDir = os.tmpdir();
-    const runId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    let srcFile = "";
+    let sourceFile = "";
     let binFile = "";
-    let cmd = "";
+    let compileCmd = "";
     let javaFolder = "";
 
     if (key === "cpp") {
-      srcFile = path.join(tempDir, `code_${runId}.cpp`);
-      binFile = path.join(tempDir, `prog_${runId}.exe`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `g++ -O2 "${srcFile}" -o "${binFile}" && "${binFile}"`;
+      sourceFile = path.join(tempDir, `code_${uniqueId}.cpp`);
+      binFile = path.join(tempDir, `bin_${uniqueId}.exe`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
+      compileCmd = `g++ -O2 "${sourceFile}" -o "${binFile}"`;
     } else if (key === "c") {
-      srcFile = path.join(tempDir, `code_${runId}.c`);
-      binFile = path.join(tempDir, `prog_${runId}.exe`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `gcc -O2 "${srcFile}" -o "${binFile}" && "${binFile}"`;
+      sourceFile = path.join(tempDir, `code_${uniqueId}.c`);
+      binFile = path.join(tempDir, `bin_${uniqueId}.exe`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
+      compileCmd = `gcc -O2 "${sourceFile}" -o "${binFile}"`;
     } else if (key === "python") {
-      srcFile = path.join(tempDir, `code_${runId}.py`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `python -u "${srcFile}"`;
+      sourceFile = path.join(tempDir, `code_${uniqueId}.py`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
     } else if (key === "javascript") {
-      srcFile = path.join(tempDir, `code_${runId}.js`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `node "${srcFile}"`;
+      sourceFile = path.join(tempDir, `code_${uniqueId}.js`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
     } else if (key === "typescript") {
-      srcFile = path.join(tempDir, `code_${runId}.ts`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `npx tsx "${srcFile}"`;
+      sourceFile = path.join(tempDir, `code_${uniqueId}.ts`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
     } else if (key === "java") {
       const classMatch = cleanCode.match(/public\s+class\s+([A-Za-z0-9_]+)/) || cleanCode.match(/class\s+([A-Za-z0-9_]+)/);
       const className = classMatch ? classMatch[1] : "Main";
-      javaFolder = path.join(tempDir, `java_${runId}`);
+      javaFolder = path.join(tempDir, `java_${uniqueId}`);
       fs.mkdirSync(javaFolder, { recursive: true });
-      srcFile = path.join(javaFolder, `${className}.java`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `java "${srcFile}"`;
+      sourceFile = path.join(javaFolder, `${className}.java`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
     } else if (key === "go") {
-      srcFile = path.join(tempDir, `code_${runId}.go`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `go run "${srcFile}"`;
+      sourceFile = path.join(tempDir, `code_${uniqueId}.go`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
     } else if (key === "rust") {
-      srcFile = path.join(tempDir, `code_${runId}.rs`);
-      binFile = path.join(tempDir, `prog_${runId}.exe`);
-      fs.writeFileSync(srcFile, cleanCode);
-      cmd = `rustc "${srcFile}" -o "${binFile}" && "${binFile}"`;
+      sourceFile = path.join(tempDir, `code_${uniqueId}.rs`);
+      binFile = path.join(tempDir, `bin_${uniqueId}.exe`);
+      fs.writeFileSync(sourceFile, cleanCode, "utf8");
+      compileCmd = `rustc "${sourceFile}" -o "${binFile}"`;
     }
 
-    const child = exec(cmd, { timeout: 2500 }, async (err, stdout, stderr) => {
+    const cleanup = () => {
       try {
-        if (srcFile && fs.existsSync(srcFile)) fs.unlinkSync(srcFile);
+        if (sourceFile && fs.existsSync(sourceFile)) fs.unlinkSync(sourceFile);
         if (binFile && fs.existsSync(binFile)) fs.unlinkSync(binFile);
         if (javaFolder && fs.existsSync(javaFolder)) {
           fs.rmSync(javaFolder, { recursive: true, force: true });
         }
       } catch (e) {}
+    };
 
-      const combinedErr = (err ? (err.message || "") : "") + " " + (stderr || "");
-      const isNotRecognized = combinedErr.toLowerCase().includes("is not recognized") ||
-                              combinedErr.toLowerCase().includes("command not found") ||
-                              combinedErr.toLowerCase().includes("enoent");
+    const runPistonFallback = async () => {
+      try {
+        console.log(`[Sandbox] Missing local compiler/runtime for '${key}', falling back to Piston Cloud API...`);
+        const res = await fetch("https://emkc.org/api/v2/piston/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            language: piston,
+            version: "*",
+            files: [{ content: cleanCode }],
+            stdin: stdin || ""
+          })
+        });
+        const data = await res.json();
+        const output = data.run?.stdout?.trim() || data.run?.output?.trim() || data.compile?.stderr?.trim() || "Execution completed.";
+        return { output: output || "Program finished with code 0.", badge: "● Exit 0 | Piston Cloud" };
+      } catch (pistonErr) {
+        console.error("[Sandbox] Piston API fallback failed:", pistonErr.message);
+        return { output: pistonErr.message || "Execution failed.", badge: "● Error | Fallback Failed" };
+      }
+    };
 
-      let output = "";
-      let badge = "● Exit 0 | Compiled locally";
-
-      if (!isNotRecognized && (stdout?.trim() || stderr?.trim())) {
-        output = stdout?.trim() || stderr?.trim() || "";
+    const executeRunCmd = () => {
+      let child;
+      if (binFile) {
+        child = spawn(binFile, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      } else if (key === "python") {
+        child = spawn("python", ["-u", sourceFile], { stdio: ['pipe', 'pipe', 'pipe'] });
+      } else if (key === "javascript") {
+        child = spawn("node", [sourceFile], { stdio: ['pipe', 'pipe', 'pipe'] });
+      } else if (key === "typescript") {
+        child = spawn("npx", ["tsx", sourceFile], { stdio: ['pipe', 'pipe', 'pipe'], shell: true });
+      } else if (key === "java") {
+        child = spawn("java", [sourceFile], { stdio: ['pipe', 'pipe', 'pipe'] });
+      } else if (key === "go") {
+        child = spawn("go", ["run", sourceFile], { stdio: ['pipe', 'pipe', 'pipe'], shell: true });
+      } else {
+        child = spawn("node", [sourceFile], { stdio: ['pipe', 'pipe', 'pipe'] });
       }
 
-      // If local compiler is missing ("is not recognized") or produced no output, fallback to Piston API
-      if (isNotRecognized || !output) {
-        try {
-          console.log(`[Sandbox] Missing local compiler/runtime for '${key}', falling back to Piston Cloud API...`);
-          const res = await fetch("https://emkc.org/api/v2/piston/execute", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              language: piston,
-              version: "*",
-              files: [{ content: code }],
-              stdin: stdin || ""
-            })
-          });
-          const data = await res.json();
-          output = data.run?.stdout?.trim() || data.run?.output?.trim() || data.compile?.stderr?.trim() || "Execution completed.";
-          badge = "● Exit 0 | Piston Cloud";
-        } catch (pistonErr) {
-          console.error("[Sandbox] Piston API fallback failed:", pistonErr.message);
-          output = err ? (stderr.trim() || err.message) : "Program finished with code 0.";
-          badge = "● Exit 0 | Compiled locally";
+      let stdoutData = "";
+      let stderrData = "";
+      let killed = false;
+
+      const timer = setTimeout(() => {
+        killed = true;
+        child.kill();
+      }, 4000);
+
+      if (child.stdout) {
+        child.stdout.on("data", (d) => { stdoutData += d.toString(); });
+      }
+      if (child.stderr) {
+        child.stderr.on("data", (d) => { stderrData += d.toString(); });
+      }
+
+      if (child.stdin) {
+        if (stdin && stdin.trim().length > 0) {
+          child.stdin.write(stdin.trim() + "\n");
         }
+        child.stdin.end();
       }
 
-      resolve({ output: output || "Program finished with code 0.", badge });
-    });
+      child.on("error", async (err) => {
+        clearTimeout(timer);
+        cleanup();
+        const combinedErr = (err ? err.message : "").toLowerCase();
+        if (combinedErr.includes("enoent") || combinedErr.includes("not found")) {
+          return resolve(await runPistonFallback());
+        }
+        resolve({ output: stderrData.trim() || err.message, badge: "● Exit 1 | Runtime Error" });
+      });
 
-    // CRITICAL: Write stdin and close stream immediately so process never hangs
-    if (child.stdin) {
-      if (stdin) child.stdin.write(stdin + "\n");
-      child.stdin.end();
+      child.on("close", (exitCode) => {
+        clearTimeout(timer);
+        cleanup();
+
+        const output = stdoutData.trim() || stderrData.trim() || (killed ? "Execution timed out." : "Program finished with code 0.");
+        const badge = exitCode === 0 && !killed ? "● Exit 0 | Compiled locally" : "● Exit 1 | Runtime Error";
+
+        resolve({ output: output || "Program finished with code 0.", badge });
+      });
+    };
+
+    if (compileCmd) {
+      exec(compileCmd, { timeout: 5000 }, async (compileErr, compileStdout, compileStderr) => {
+        const combinedErr = ((compileErr ? compileErr.message : "") + " " + (compileStderr || "")).trim();
+        const isNotRecognized = combinedErr.toLowerCase().includes("is not recognized") ||
+                                combinedErr.toLowerCase().includes("command not found") ||
+                                combinedErr.toLowerCase().includes("enoent");
+
+        if (isNotRecognized) {
+          cleanup();
+          return resolve(await runPistonFallback());
+        }
+
+        if (compileErr || !fs.existsSync(binFile)) {
+          cleanup();
+          const errOutput = compileStderr?.trim() || compileStdout?.trim() || compileErr?.message || "Compilation failed.";
+          return resolve({
+            output: errOutput,
+            badge: "● Exit 1 | Compile Error"
+          });
+        }
+
+        // Compilation succeeded! Execute binary
+        executeRunCmd();
+      });
+    } else {
+      executeRunCmd();
     }
   });
 }
