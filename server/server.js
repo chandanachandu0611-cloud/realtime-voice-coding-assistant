@@ -149,54 +149,55 @@ function parseLang(rawLang, code = "") {
 }
 
 // Helper for sub-second local code execution across 8 programming languages
-function runLocally(rawLang, code, stdin = "") {
+function runLocally(rawLang, rawCode, stdin = "") {
   return new Promise(async (resolve) => {
-    const { key, name, piston } = parseLang(rawLang, code);
+    const cleanCode = (rawCode || "").replace(/\\\\n/g, '\\n').replace(/\\n/g, '\n');
+    const { key, name, piston } = parseLang(rawLang, cleanCode);
     const tempDir = os.tmpdir();
-    const stamp = Date.now();
+    const runId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
     let srcFile = "";
     let binFile = "";
     let cmd = "";
     let javaFolder = "";
 
     if (key === "cpp") {
-      srcFile = path.join(tempDir, `run_${stamp}.cpp`);
-      binFile = path.join(tempDir, `run_${stamp}.exe`);
-      fs.writeFileSync(srcFile, code);
+      srcFile = path.join(tempDir, `code_${runId}.cpp`);
+      binFile = path.join(tempDir, `prog_${runId}.exe`);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `g++ -O2 "${srcFile}" -o "${binFile}" && "${binFile}"`;
     } else if (key === "c") {
-      srcFile = path.join(tempDir, `run_${stamp}.c`);
-      binFile = path.join(tempDir, `run_${stamp}.exe`);
-      fs.writeFileSync(srcFile, code);
+      srcFile = path.join(tempDir, `code_${runId}.c`);
+      binFile = path.join(tempDir, `prog_${runId}.exe`);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `gcc -O2 "${srcFile}" -o "${binFile}" && "${binFile}"`;
     } else if (key === "python") {
-      srcFile = path.join(tempDir, `run_${stamp}.py`);
-      fs.writeFileSync(srcFile, code);
+      srcFile = path.join(tempDir, `code_${runId}.py`);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `python -u "${srcFile}"`;
     } else if (key === "javascript") {
-      srcFile = path.join(tempDir, `run_${stamp}.js`);
-      fs.writeFileSync(srcFile, code);
+      srcFile = path.join(tempDir, `code_${runId}.js`);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `node "${srcFile}"`;
     } else if (key === "typescript") {
-      srcFile = path.join(tempDir, `run_${stamp}.ts`);
-      fs.writeFileSync(srcFile, code);
+      srcFile = path.join(tempDir, `code_${runId}.ts`);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `npx tsx "${srcFile}"`;
     } else if (key === "java") {
-      const classMatch = code.match(/public\s+class\s+([A-Za-z0-9_]+)/) || code.match(/class\s+([A-Za-z0-9_]+)/);
+      const classMatch = cleanCode.match(/public\s+class\s+([A-Za-z0-9_]+)/) || cleanCode.match(/class\s+([A-Za-z0-9_]+)/);
       const className = classMatch ? classMatch[1] : "Main";
-      javaFolder = path.join(tempDir, `java_${stamp}`);
+      javaFolder = path.join(tempDir, `java_${runId}`);
       fs.mkdirSync(javaFolder, { recursive: true });
       srcFile = path.join(javaFolder, `${className}.java`);
-      fs.writeFileSync(srcFile, code);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `java "${srcFile}"`;
     } else if (key === "go") {
-      srcFile = path.join(tempDir, `run_${stamp}.go`);
-      fs.writeFileSync(srcFile, code);
+      srcFile = path.join(tempDir, `code_${runId}.go`);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `go run "${srcFile}"`;
     } else if (key === "rust") {
-      srcFile = path.join(tempDir, `run_${stamp}.rs`);
-      binFile = path.join(tempDir, `run_${stamp}.exe`);
-      fs.writeFileSync(srcFile, code);
+      srcFile = path.join(tempDir, `code_${runId}.rs`);
+      binFile = path.join(tempDir, `prog_${runId}.exe`);
+      fs.writeFileSync(srcFile, cleanCode);
       cmd = `rustc "${srcFile}" -o "${binFile}" && "${binFile}"`;
     }
 
@@ -275,13 +276,17 @@ wss.on('connection', (clientWs, req) => {
   const systemInstructionText = `You are an ultra-precise, real-time code execution assistant.
 CRITICAL RULES:
 
-Treat every coding request independently regarding language. NEVER carry over the language from a previous query if the user states a new one.
+1. Treat every coding request independently regarding language. NEVER carry over the language from a previous query if the user states a new one.
 
-If the user mentions "C" or "C program" or "using C", you MUST output pure C code with <stdio.h> and set language: "c". NEVER generate Java, C++, or Python when C is requested.
+2. If the user mentions "C" or "C program" or "using C", you MUST output pure C code with <stdio.h> and set language: "c". NEVER generate Java, C++, or Python when C is requested.
 
-Strictly follow data structure constraints: if the user specifies "using array", you MUST declare and use an array.
+3. When asked for programs that take user input, use scanf (C), cin (C++), or input() (Python). Do NOT hardcode input variables if the user asked for input.
 
-Trigger execute_code immediately on the first token with complete, compilable code. ${persona}`;
+4. Never double-escape newlines in strings: output \\n, not \\\\n.
+
+5. Strictly follow data structure constraints: if the user specifies "using array", you MUST declare and use an array.
+
+6. Trigger execute_code immediately on the first token with complete, compilable code. ${persona}`;
 
   console.log(`[Proxy] Client connected (voice: ${voiceName}). Connecting to Gemini Live API...`);
 

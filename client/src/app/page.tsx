@@ -402,14 +402,27 @@ export default function VoiceAssistant() {
         if (msg.type === 'CODE_EXECUTION' || msg.type === 'RE_RUN_RESULT' || msg.type === 'ERROR') {
           console.log('Received code execution result:', msg);
           setIsRunningCode(false);
-          if (msg.language) {
-            setSelectedLang(msg.language);
+
+          const codeStr = msg.code || '';
+          let detectedLang = (msg.language || 'C').toUpperCase();
+
+          if (codeStr.includes('#include <stdio.h>') && !codeStr.includes('<iostream>')) {
+            detectedLang = 'C';
+          } else if (codeStr.includes('#include <iostream>') || codeStr.includes('std::')) {
+            detectedLang = 'CPP';
+          } else if (codeStr.includes('public class') || codeStr.includes('System.out.println')) {
+            detectedLang = 'JAVA';
           }
+
+          setSelectedLang(detectedLang);
+
+          const cleanOutput = (msg.output || '').replace(/\\n/g, '\n');
+
           if (msg.output !== undefined || msg.code !== undefined) {
             setActiveCode({
-              language: msg.language || 'python',
+              language: detectedLang,
               code: msg.code || '',
-              output: msg.output || '',
+              output: cleanOutput,
               badge: msg.badge || '● Exit 0 | Compiled locally',
             });
           }
