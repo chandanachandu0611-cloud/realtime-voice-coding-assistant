@@ -1,0 +1,16 @@
+{
+  "name": "gemini-live-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@types/prismjs": "^1.26.6",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "prismjs": "^1.30.0",
+    "ws": "^8.18.0"
+  }
+}

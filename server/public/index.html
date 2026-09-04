@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gemini Realtime Voice Assistant</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" fill="url(#sparkle-grad)" />
+            <defs>
+              <linearGradient id="sparkle-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#4F46E5" />
+                <stop offset="0.5" stop-color="#7C3AED" />
+                <stop offset="1" stop-color="#EC4899" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h1>Gemini <span>Live Voice</span></h1>
+      </div>
+
+      <div class="header-right">
+        <div id="statusPill" class="status-pill disconnected">
+          <span class="status-dot"></span>
+          <span id="statusText">Disconnected</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Grid Layout -->
+    <main class="main-content">
+      <!-- Left Column: Visualizer & Controls -->
+      <section class="visualizer-card glass-panel">
+        <div class="card-header">
+          <h2>Audio Spectrum</h2>
+          <span class="badge" id="modeBadge">16kHz In / 24kHz Out</span>
+        </div>
+
+        <!-- Canvas Audio Waveform -->
+        <div class="canvas-container">
+          <canvas id="visualizerCanvas"></canvas>
+          <div class="audio-state-overlay" id="audioStateOverlay">
+            <div class="orb-container" id="orbContainer">
+              <div class="orb core"></div>
+              <div class="orb wave1"></div>
+              <div class="orb wave2"></div>
+            </div>
+            <p id="visualizerSubtext">Click "Start Session" to speak with Gemini</p>
+          </div>
+        </div>
+
+        <!-- Primary Mic Action Controls -->
+        <div class="primary-controls">
+          <button id="toggleSessionBtn" class="btn btn-primary start-btn">
+            <span class="btn-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+              </svg>
+            </span>
+            <span id="toggleSessionText">Start Session</span>
+          </button>
+
+          <button id="interruptBtn" class="btn btn-secondary" disabled title="Interrupt Gemini's response">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="6" width="12" height="12" rx="2"/>
+            </svg>
+            <span>Interrupt</span>
+          </button>
+        </div>
+
+        <!-- Settings Drawer -->
+        <div class="settings-drawer">
+          <div class="settings-group">
+            <label for="voiceSelect">Assistant Voice</label>
+            <select id="voiceSelect" class="form-control">
+              <option value="Puck">Puck (Natural, Energetic)</option>
+              <option value="Charon">Charon (Deep, Authoritative)</option>
+              <option value="Aoede">Aoede (Warm, Expressive)</option>
+              <option value="Fenrir">Fenrir (Confident, Clear)</option>
+              <option value="Kore">Kore (Calm, Gentle)</option>
+            </select>
+          </div>
+
+          <div class="settings-group">
+            <label for="systemInstruction">System Persona & Context</label>
+            <div class="preset-buttons">
+              <button class="preset-btn" data-preset="friendly">Friendly</button>
+              <button class="preset-btn" data-preset="mentor">Coding Mentor</button>
+              <button class="preset-btn" data-preset="concise">Concise</button>
+              <button class="preset-btn" data-preset="sarcastic">Witty</button>
+            </div>
+            <textarea id="systemInstruction" class="form-control" rows="3" placeholder="Define how Gemini should behave...">You are a helpful, quick, and conversational AI voice assistant powered by Gemini. Keep your answers natural, engaging, and suitable for spoken dialogue.</textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Live Transcript & Log -->
+      <section class="transcript-card glass-panel">
+        <div class="card-header">
+          <h2>Live Transcript</h2>
+          <button id="clearTranscriptBtn" class="btn-text">Clear</button>
+        </div>
+
+        <div class="transcript-feed" id="transcriptFeed">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon">💬</div>
+            <p>Your conversation with Gemini will appear here in real-time.</p>
+          </div>
+        </div>
+
+        <div class="audio-stats">
+          <div class="stat-item">
+            <span class="stat-label">Audio Input</span>
+            <span class="stat-value" id="micLevelText">0%</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Buffers Queued</span>
+            <span class="stat-value" id="bufferCountText">0</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>Powered by Google Gemini 2.0 Multimodal Live API over WebSockets</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
