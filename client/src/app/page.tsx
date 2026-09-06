@@ -344,7 +344,12 @@ export default function VoiceAssistant() {
 
       // 4. Open WebSocket connection to proxy server
       const currentPersona = PERSONAS.find((p) => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
-      const wsUrl = `ws://localhost:8080?voice=${encodeURIComponent(selectedVoice)}&persona=${encodeURIComponent(
+      const rawWsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://realtime-voice-coding-backend.onrender.com';
+      let wsBaseUrl = rawWsUrl.startsWith('wss://')
+        ? rawWsUrl
+        : rawWsUrl.replace(/^(ws:\/\/|http:\/\/|https:\/\/)?/, 'wss://');
+      wsBaseUrl = wsBaseUrl.replace(/\/+$/, '');
+      const wsUrl = `${wsBaseUrl}?voice=${encodeURIComponent(selectedVoice)}&persona=${encodeURIComponent(
         currentPersona
       )}`;
 
