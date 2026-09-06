@@ -10,7 +10,11 @@
 An ultra-fast, voice-interactive AI coding partner and live execution environment powered by **Google Gemini 2.5 Multimodal Live API** over WebSockets. Speak your problem statements naturally, and watch complete, compilable source code generate, execute, and stream results in sub-second time.
 
 ---
+## 🎬 Live Demo Video
 
+[![Watch the Realtime Voice Coding Assistant Demo](https://img.youtube.com/vi/LWrQY-TwLbM/maxresdefault.jpg)](https://youtu.be/LWrQY-TwLbM)
+
+> 🎙️ **[Click here to watch the full demo on YouTube](https://youtu.be/LWrQY-TwLbM)**
 ## 🌟 Overview
 
 The **Real-Time Voice-First AI Coding Assistant** bridges natural spoken conversation with instant, real-time code generation and sandbox execution. Built with a full-width **Cyberpunk Deep Dark Mode UI**, this application captures 16kHz PCM microphone audio, streams it bi-directionally via WebSockets to Gemini Multimodal Live, and triggers zero-preamble tool execution for C, C++, Python, Java, JavaScript, TypeScript, Go, and Rust.
